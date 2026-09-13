@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Chat</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: sans-serif; }
+        body { display: flex; height: 100vh; background-color: #0e1621; justify-content: center; align-items: center; }
+
+        .auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .auth-card { background: #17212b; padding: 25px; border-radius: 12px; width: 90%; max-width: 320px; color: #fff; text-align: center; }
+        .auth-card h2 { margin-bottom: 15px; color: #5288c1; }
+        .auth-card input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #242f3d; background: #242f3d; color: #fff; border-radius: 8px; outline: none; }
+        .auth-btn { width: 100%; padding: 12px; background: #5288c1; border: none; color: white; font-weight: bold; border-radius: 8px; cursor: pointer; }
+
+        .app-container { display: none; width: 100%; max-width: 1200px; height: 100vh; background: #17212b; }
+        .sidebar { width: 300px; border-right: 1px solid #10171e; display: flex; flex-direction: column; background: #17212b; }
+        .user-profile { padding: 15px; background: #242f3d; display: flex; align-items: center; justify-content: space-between; color: #fff; }
+        .profile-nick { font-weight: bold; }
+        .logout-btn { background: transparent; border: none; color: #e53935; cursor: pointer; font-size: 12px; }
+
+        .chat-list-title { padding: 10px; font-size: 12px; color: #7f91a4; font-weight: bold; }
+        .chat-list { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+        .user-item { display: flex; align-items: center; gap: 10px; padding: 12px; cursor: pointer; border-bottom: 1px solid #10171e; color: #fff; }
+        .user-item:hover { background: #202b36; }
+        .avatar-circle { width: 40px; height: 40px; border-radius: 50%; background: #5288c1; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #fff; }
+
+        .chat-area { flex: 1; display: flex; flex-direction: column; background-color: #0e1621; }
+        .chat-header { padding: 15px; background: #17212b; color: #fff; border-bottom: 1px solid #10171e; display: flex; align-items: center; gap: 10px; }
+        
+        .messages-container { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 70%; padding: 8px 12px; border-radius: 10px; font-size: 14px; color: #fff; word-break: break-word; }
+        .msg.my { background: #2b5278; align-self: flex-end; }
+        .msg.other { background: #182533; align-self: flex-start; }
+        .msg-sticker { font-size: 40px; background: transparent !important; }
+        .msg-img { max-width: 100%; max-height: 200px; border-radius: 8px; }
+
+        .input-bar { padding: 10px; background: #17212b; display: flex; align-items: center; gap: 6px; position: relative; }
+        .input-bar input[type="text"] { flex: 1; padding: 10px; border: none; background: #242f3d; border-radius: 8px; color: #fff; outline: none; }
+        .icon-btn { background: transparent; border: none; font-size: 18px; cursor: pointer; padding: 5px; }
+        .send-btn { background: #5288c1; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+        .sticker-box { display: none; position: absolute; bottom: 55px; right: 50px; background: #17212b; border: 1px solid #242f3d; padding: 10px; border-radius: 8px; gap: 8px; z-index: 10; }
+        .sticker-item { font-size: 24px; cursor: pointer; }
+
+        .empty-chat { flex: 1; display: flex; align-items: center; justify-content: center; color: #7f91a4; }
+    </style>
+</head>
+<body>
+
+<div class="auth-overlay" id="authModal">
+    <div class="auth-card">
+        <h2>Kirish</h2>
+        <input type="text" id="regNick" placeholder="Nick kiriting">
+        <button class="auth-btn" onclick="login()">Boshlash</button>
+    </div>
+</div>
+
+<div class="app-container" id="appContainer">
+    <div class="sidebar">
+        <div class="user-profile">
+            <span class="profile-nick" id="myNickDisplay"></span>
+            <button class="logout-btn" onclick="logout()">Chiqish</button>
+        </div>
+        <div class="chat-list-title">FOYDALANUVCHILAR</div>
+        <div class="chat-list" id="usersList"></div>
+    </div>
+
+    <div class="chat-area">
+        <div class="empty-chat" id="emptyChatText">Gaplashish uchun kontakt tanlang</div>
+        
+        <div id="activeChatWindow" style="display:none; flex-direction:column; height:100%;">
+            <div class="chat-header">
+                <div class="avatar-circle" id="targetAvatarText"></div>
+                <h3 id="targetNickDisplay">...</h3>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer"></div>
+
+            <div class="sticker-box" id="stickerBox">
+                <span class="sticker-item" onclick="sendSticker('🔥')">🔥</span>
+                <span class="sticker-item" onclick="sendSticker('😎')">😎</span>
+                <span class="sticker-item" onclick="sendSticker('❤️')">❤️</span>
+                <span class="sticker-item" onclick="sendSticker('👍')">👍</span>
+                <span class="sticker-item" onclick="sendSticker('😂')">😂</span>
+            </div>
+
+            <div class="input-bar">
+                <input type="file" id="imageInput" accept="image/*" style="display:none;" onchange="sendImage(this)">
+                <button class="icon-btn" onclick="document.getElementById('imageInput').click()">📷</button>
+                <button class="icon-btn" onclick="toggleStickers()">😊</button>
+                <input type="text" id="messageInput" placeholder="Xabar...">
+                <button class="send-btn" onclick="sendMessage()">Yuborish</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+<script>
+    const firebaseConfig = { databaseURL: "https://telegram-clone-demo-default-rtdb.firebaseio.com" };
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentUser = null;
+    let selectedUser = null;
+    let currentChatRef = null;
+
+    window.onload = function() {
+        const savedUser = localStorage.getItem('tg_user_nick');
+        if (savedUser) {
+            currentUser = savedUser;
+            initUser();
+        }
+    };
+
+    function login() {
+        const nick = document.getElementById('regNick').value.trim();
+        if (!nick) return alert("Nick kiriting!");
+        currentUser = nick;
+        localStorage.setItem('tg_user_nick', currentUser);
+        initUser();
+    }
+
+    function initUser() {
+        document.getElementById('authModal').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'flex';
+        document.getElementById('myNickDisplay').innerText = currentUser;
+
+        // O'zimizni Firebase bazasiga yozamiz
+        db.ref("users/" + currentUser).set({ nick: currentUser });
+        
+        // Barcha foydalanuvchilarni yuklaymiz
+        listenUsers();
+    }
+
+    function logout() {
+        localStorage.removeItem('tg_user_nick');
+        location.reload();
+    }
+
+    // Har gal yangi odam kirsa real vaqtda ro'yxatga chiqarish
+    function listenUsers() {
+        db.ref("users").on("value", (snapshot) => {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = ""; // Ro'yxatni yangilash
+
+            snapshot.forEach((child) => {
+                const user = child.val();
+                if (user.nick !== currentUser) {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-item';
+                    userDiv.innerHTML = `<div class="avatar-circle">${user.nick.charAt(0).toUpperCase()}</div><div>${user.nick}</div>`;
+                    userDiv.onclick = () => selectUser(user.nick);
+                    usersList.appendChild(userDiv);
+                }
+            });
+        });
+    }
+
+    function selectUser(targetNick) {
+        selectedUser = targetNick;
+        document.getElementById('emptyChatText').style.display = 'none';
+        document.getElementById('activeChatWindow').style.display = 'flex';
+        document.getElementById('targetNickDisplay').innerText = targetNick;
+        document.getElementById('targetAvatarText').innerText = targetNick.charAt(0).toUpperCase();
+
+        const chatId = [currentUser, targetNick].sort().join("_");
+        if (currentChatRef) currentChatRef.off();
+        
+        document.getElementById('messagesContainer').innerHTML = '';
+        currentChatRef = db.ref("private_chats/" + chatId);
+        
+        currentChatRef.on("child_added", (snapshot) => {
+            appendMessage(snapshot.val());
+        });
+    }
+
+    function appendMessage(data) {
+        const container = document.getElementById('messagesContainer');
+        const isMyMsg = data.sender === currentUser;
+        const msgDiv = document.createElement('div');
+        
+        if(data.type === 'sticker') {
+            msgDiv.className = `msg ${isMyMsg ? 'my' : 'other'} msg-sticker`;
+            msgDiv.innerText = data.content;
+        } else if(data.type === 'image') {
+            msgDiv.className = `msg ${isMyMsg ? 'my' : 'other'}`;
+            msgDiv.innerHTML = `<img src="${data.content}" class="msg-img">`;
+        } else {
+            msgDiv.className = `msg ${isMyMsg ? 'my' : 'other'}`;
+            msgDiv.innerText = data.content;
+        }
+
+        container.appendChild(msgDiv);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    function sendData(type, content) {
+        if (!selectedUser) return;
+        const chatId = [currentUser, selectedUser].sort().join("_");
+        db.ref("private_chats/" + chatId).push({
+            sender: currentUser,
+            type: type,
+            content: content,
+            timestamp: Date.now()
+        });
+    }
+
+    function sendMessage() {
+        const input = document.getElementById('messageInput');
+        if (input.value.trim() !== "") {
+            sendData('text', input.value.trim());
+            input.value = "";
+        }
+    }
+
+    function sendSticker(emoji) {
+        sendData('sticker', emoji);
+        document.getElementById('stickerBox').style.display = 'none';
+    }
+
+    function toggleStickers() {
+        const box = document.getElementById('stickerBox');
+        box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+    }
+
+    function sendImage(input) {
+        const file = input.files[0];
+        if (file) {
+            if (file.size > 500000) return alert("Rasm o'lchami juda katta (500KB dan kichik rasm tanlang)!");
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                sendData('image', e.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    document.getElementById('messageInput').addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+</script>
+</body>
+</html>
